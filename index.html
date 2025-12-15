@@ -5,11 +5,16 @@
   <title>Private Access</title>
 
   <!-- ✅ 禁止 GitHub Pages / Jekyll 修改這個檔案 -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://summer-resonance-1f41.zammbb810.workers.dev; script-src 'self'; connect-src https://summer-resonance-1f41.zammbb810.workers.dev;">
-
+  <meta name="robots" content="noindex">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' https://summer-resonance-1f41.zammbb810.workers.dev;
+                 script-src 'self';
+                 connect-src https://summer-resonance-1f41.zammbb810.workers.dev;">
 </head>
+
 <body>
   <h2>Enter Password</h2>
+
   <input id="pw" type="password" placeholder="Password">
   <button id="btn">Enter</button>
 
@@ -20,13 +25,13 @@
       const pw = document.getElementById("pw").value;
 
       // ✅ 確保 JSON 正確送出
-      const bodyData = JSON.stringify({ password: pw });
-      console.log("Sending JSON:", bodyData);
+      const payload = JSON.stringify({ password: pw });
+      console.log("Sending JSON:", payload);
 
       const res = await fetch("https://summer-resonance-1f41.zammbb810.workers.dev/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: bodyData
+        body: payload
       });
 
       let data;
