@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Google Maps Mapcode</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+body, html {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f7f7f7; /* 設置背景顏色 */
+}
+
+#map {
+    height: 60%; /* 設置地圖的高度 */
+    width: auto; /* 地圖寬度自動適應容器 */
+    max-width: 100%; /* 確保地圖寬度不超過100% */
+    border: 1px solid black; /* 地圖周邊的極細黑線框 */
+    margin: 10px auto; /* 上下保持10px的邊距，左右居中 */
+}
+
+.input-group {
+    display: flex;
+    justify-content: space-between; /* 確保元素之間有間隔 */
+    align-items: center;
+    margin: 10px;
+    padding: 10px;
+}
+
+input[type="text"] {
+    flex: 1 0 auto; /* 輸入欄位將佔用剩餘空間 */
+    margin-right: 10px; /* 與按鈕之間的距離 */
+    padding: 14px 22px;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+input[type="button"] {
+    padding: 12px 20px;
+    margin: 8px 10px;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#searchButton {
+    background-color: #4CAF50;
+    color: white;
+}
+
+#resetButton {
+    order: 3; /* 將重置按鈕移至最右邊 */
+    background-color: #f44336;
+    color: white;
+}
+
+#locationButton {
+    background-color: #008CBA;
+    color: white;
+}
+
+/* 按鈕懸停效果 */
+input[type="button"]:hover {
+    background-color: #45a049;
+}
+
+/* 確保在移動設備上也能正常使用 */
+@media screen and (max-width: 768px) {
+    .input-group {
+        flex-direction: column; /* 在小屏幕上堆疊元素 */
+    }
+
+    input[type="text"], input[type="button"] {
+        width: calc(100% - 20px); /* 在小屏幕上元素寬度為100%減去邊距 */
+        margin: 8px 10px; /* 調整間隔 */
+    }
+
+    #map {
+        height: 50%; /* 在小屏幕上調整地圖的高度 */
+        margin: 10px; /* 在小屏幕上調整邊距 */
+    }
+}
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBjii7caCwSm-bw2wmiS4I9m58dcquJne8&callback=initMap" async defer></script>
+    <script>
+        let map;
+        let geocoder;
+        let markers = []; // 用來保存所有標記的數組
+
+        function initMap() {
+            const defaultLocation = { lat: 22.998955, lng: 120.217146 };
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 14,
+                center: defaultLocation
+            });
+            geocoder = new google.maps.Geocoder();
+
+            // 當用戶點擊地圖時，不提供地點名稱參數
+            map.addListener('click', function(e) {
+                geocoder.geocode({ 'location': e.latLng }, function(results, status) {
+                    if (status === 'OK') {
+                        if (results[0]) {
+                            placeMarkerAndOpenInfoWindow(e.latLng, results[0].formatted_address);
+                        } else {
+                            console.log('No results found');
+                        }
+                    } else {
+                        console.log('Geocoder failed due to: ' + status);
+                    }
+                });
+            });
+        }
+
+        function placeMarkerAndOpenInfoWindow(location, address, placeName = null) {
+            const marker = new google.maps.Marker({
+                position: location,
+                map: map
+            });
+
+            // 創建信息窗口內容
+            var contentString = '<div class="info-window-content">' +
+                (placeName ? '<strong>地點名稱：</strong> ' + placeName + '<br>' : '') +
+                '<strong>地址：</strong> ' + address +
+                '<br><strong>座標：</strong> ' + location.lat().toFixed(6) + ", " + location.lng().toFixed(6) +
+                '<br><strong>Mapcode：</strong> ' + generateMapCode(location.lat().toFixed(6) + ", " + location.lng().toFixed(6)) +
+                '<br><strong>電力座標：</strong> ' + WGS84toPOWER(location.lat().toFixed(6) + ", " + location.lng().toFixed(6)) + '</div>';
+
+            const infoWindow = new google.maps.InfoWindow({
+                content: contentString
+            });
+
+            // 添加標記點擊事件監聽器來開關信息窗口
+            marker.addListener('click', function() {
+                if (infoWindow.getMap()) {
+                    infoWindow.close();
+                } else {
+                    infoWindow.open(map, marker);
+                }
+            });
+
+            // 添加信息窗口點擊事件監聽器來複製資訊
+            infoWindow.addListener('domready', function() {
+                const infoWindowContent = document.querySelectorAll('.info-window-content');
+                infoWindowContent.forEach(function(content) {
+                    content.addEventListener('click', function() {
+                        const markerInfo = `地點名稱: ${placeName || 'N/A'}\n地址: ${address}\n座標: ${location.lat().toFixed(6)}, ${location.lng().toFixed(6)}\nMapcode: ${generateMapCode(location.lat().toFixed(6) + ", " + location.lng().toFixed(6))}\n電力座標: ${WGS84toPOWER(location.lat().toFixed(6) + ", " + location.lng().toFixed(6))}`;
+                        copyToClipboard(markerInfo);
+
+                        // 顯示通知
+                        const notification = document.createElement('div');
+                        notification.innerText = '已複製';
+                        notification.style.position = 'fixed';
+                        notification.style.bottom = '10px';
+                        notification.style.left = '50%';
+                        notification.style.transform = 'translateX(-50%)';
+                        notification.style.backgroundColor = '#4CAF50';
+                        notification.style.color = 'white';
+                        notification.style.padding = '5px 10px';
+                        notification.style.borderRadius = '5px';
+                        notification.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+                        document.body.appendChild(notification);
+
+                        // 2秒後自動消失
+                        setTimeout(() => {
+                            notification.style.transition = 'opacity 0.5s ease';
+                            notification.style.opacity = '0';
+                            setTimeout(() => {
+                                document.body.removeChild(notification);
+                            }, 500);
+                        }, 2000);
+                    });
+                });
+            });
+
+            // 將標記和信息窗口保存到 markers 數組中
+            markers.push({ marker: marker, infoWindow: infoWindow });
+
+            // 預設打開信息窗口
+            infoWindow.open(map, marker);
+        }
+
+        function copyToClipboard(text) {
+            const tempInput = document.createElement('textarea');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+        }
+
+        function generateContentString(location, address) {
+            const latLngStr = location.lat().toFixed(6) + ", " + location.lng().toFixed(6);
+            const mapCode = generateMapCode(latLngStr);
+            return '<div><strong>地點：</strong> ' + address +
+                '<br><strong>座標：</strong> ' + latLngStr +
+                '<br><strong>Mapcode：</strong> ' + mapCode + '</div>';
+        }
+
+        function geocodeAddress() {
+            var addressInput = document.getElementById('address');
+            var searchName = addressInput.value;
+            geocoder.geocode({ 'address': searchName }, function(results, status) {
+                if (status === 'OK') {
+                    if (results[0]) {
+                        map.setCenter(results[0].geometry.location);
+                        var address = results[0].formatted_address;
+                        var placeName = results[0].name || searchName;
+                        placeMarkerAndOpenInfoWindow(results[0].geometry.location, address, placeName);
+                    } else {
+                        // 如果沒有找到結果，顯示提示信息
+                        alert('沒有找到與 "' + searchName + '" 相關的地點。請嘗試其他關鍵字。');
+                    }
+                } else {
+                    alert('Geocode was not successful for the following reason: ' + status);
+                }
+            });
+        }
+
+
+         // 根據提供的VBA邏輯生成Mapcode的函數
+        function generateMapCode(coorstr) {
+            // 初始化變量
+            var zone = "";
+            var Strarray = coorstr.split(",");
+            var lat0 = 21.75;
+            var lonz = 119.25;
+            var lat = parseFloat(Strarray[0].trim());
+            var lon = parseFloat(Strarray[1].trim());
+            var zlon = lonz + Math.floor((lon - lonz) * 4) * 0.25;
+            var zlat = lat0 + Math.floor((lat - lat0) * 4) * 0.25;
+            var blocklon0 = (lon - zlon) * 120;
+            var blocklon = Math.floor(blocklon0);
+            var blocklat0 = (lat - zlat) * 120;
+            var blocklat = Math.floor(blocklat0);
+            var block = 30 * blocklat + blocklon;
+            var unitlon0 = (blocklon0 - blocklon) * 30;
+            var unitlon = Math.floor(unitlon0);
+            var unitlat0 = (blocklat0 - blocklat) * 30;
+            var unitlat = Math.floor(unitlat0);
+            var unit = 30 * unitlat + unitlon;
+            var corelon0 = (unitlon0 - unitlon) * 3;
+            var corelon = Math.floor(corelon0);
+            var corelat0 = (unitlat0 - unitlat) * 3;
+            var corelat = Math.floor(corelat0);
+            var scorelon = Math.floor((corelon0 - corelon) * 3);
+            var scorelat = Math.floor((corelat0 - corelat) * 3);
+            var s = [
+                [5, 6, 7],
+                [8, 0, 1],
+                [2, 3, 4]
+            ];
+            var y = [
+            "25,121.5", "22.5,120.25", "24,120.5", "22.75,120", "22.75,121", "23.25,120.25",
+            "23.75,121.5", "24.75,121.25", "24.75,120.75", "24.75,121", "25,121.25", "23.75,120.5",
+            "24.5,120.75", "23.5,120.5", "23.5,120.25", "24.25,120.5", "23.25,120", "24.75,121.5",
+            "23,120.25", "24.75,121.75", "22.75,120.25", "24.25,120.75", "24.5,121.75", "23.75,120.25",
+            "23,120", "23.25,121.25", "22.75,120.5", "23.75,120.75", "24,120.75", "23,121.25",
+            "24.5,121", "24,120.25", "25,121.75", "23.25,120.5", "23,121", "23.5,120.75",
+            "23.5,119.5", "21.75,120.75", "24.5,120.5", "22.5,120.5", "23.5,121.25", "22,120.75",
+            "23.75,121.25", "23.75,121", "22.25,120.25", "24,121", "22,120.5", "23.5,121.5",
+            "24.25,121.75", "22.75,121.25", "21.75,120.5", "23,120.5", "22.25,120.5", "22.5,120.75",
+            "22.25,120.75", "22.75,120.75", "24.5,121.5", "24.25,121.25", "23.25,120.75", "23.5,120",
+            "24.5,121.25", "24.25,121", "23.25,121", "23.5,121", "24.25,121.5", "23,120.75",
+            "24,121.25", "24,121.5", "25,121", "22.5,121", "23.75,120", "25.25,121.5",
+            "22,121.5", "22.5,121.25", "22.5,121.5", "22.5,120", "23,119.25", "23.25,119.25",
+            "23.25,119.5", "23.5,119.25", "21.75,121.25", "21.75,121.5", "22,120", "22,120.25",
+            "22.25,120", "22,121", "22,121.25", "22.25,121", "22.25,121.25", "22.25,121.5",
+            "22.75,119.75", "23,119.5", "23,119.75", "23.25,119.75", "22.75,121.5", "23,121.5",
+            "23.25,121.5", "23.25,121.75", "23.5,119.75", "23.75,119.25", "23.75,119.5", "23.5,121.75",
+            "23.75,121.75", "24,120", "24.25,120.25", "24.5,120.25", "24,121.75", "24.5,122",
+            "24.75,120.5", "25,120.75", "25.25,121", "25.25,121.25", "25.25,121.75", "24.75,122",
+            "25,122", "25.25,122", "25.5,121.75", "25.75,121.75", "25.5,122", "25.75,122"
+            ];
+
+            var q = 0;
+            while (y[q] !== zlat + "," + zlon) {
+                q++;
+            }
+            zone = q;
+            var core = s[corelat][corelon];
+            var Score = s[scorelat][scorelon];
+            if (zone === 0) zone = "";
+            var f1 = zone + " " + ("000" + block).slice(-3) + " " + ("000" + unit).slice(-3) + "*" + core + Score;
+            return f1;
+        }
+
+function WGS84toPOWER(cellValue) {
+  // WGS84 轉 TWD97
+  var parts = cellValue.split(',');
+  var lat = parseFloat(parts[0]);
+  var lng = parseFloat(parts[1]);
+  var a = 6378137.0;
+  var b = 6356752.314245;
+  var lng0 = 121 * (Math.PI / 180.0);
+  var k0 = 0.9999;
+  var dx = 250000;
+  var radLat = lat * (Math.PI / 180.0);
+  var radLng = lng * (Math.PI / 180.0);
+  var e = Math.sqrt((a * a - b * b) / (a * a));
+  var N = a / Math.sqrt(1 - Math.pow(e, 2) * Math.pow(Math.sin(radLat), 2));
+  var t = Math.tan(radLat);
+  var p = Math.cos(radLat);
+  var A = (radLng - lng0) * p;
+  var M = a * ((1 - Math.pow(e, 2) / 4 - 3 * Math.pow(e, 4) / 64 - 5 * Math.pow(e, 6) / 256) * radLat 
+               - (3 * Math.pow(e, 2) / 8 + 3 * Math.pow(e, 4) / 32 + 45 * Math.pow(e, 6) / 1024) * Math.sin(2 * radLat) 
+               + (15 * Math.pow(e, 4) / 256 + 45 * Math.pow(e, 6) / 1024) * Math.sin(4 * radLat) 
+               - (35 * Math.pow(e, 6) / 3072) * Math.sin(6 * radLat));
+  var x97 = dx + k0 * N * (A + (1 - t * t + e * e * p * p) * Math.pow(A, 3) / 6 
+                         + (5 - 18 * t * t + Math.pow(t, 4) + 14 * e * e * p * p - 58 * e * e * t * t * p * p) * Math.pow(A, 5) / 120);
+  var y97 = k0 * (M + N * t * (Math.pow(A, 2) / 2 + (5 - t * t + 9 * e * e * p * p + 4 * e * e * e * e * p * p * p * p) * Math.pow(A, 4) / 24 
+                        + (61 - 58 * t * t + Math.pow(t, 4) + 270 * e * e * p * p - 330 * e * e * t * t * p * p) * Math.pow(A, 6) / 720));
+
+  // TWD97 轉 TWD67
+  var A = 0.00001549;
+  var B = 0.000006521;
+  var x67 = x97 - 807.8 - A * x97 - B * y97;
+  var y67 = y97 + 248.6 - A * y97 - B * x97;
+
+  // TWD67 轉 POWER
+  var E67 = parseInt(x67.toFixed(6));
+  var N67 = parseInt(y67.toFixed(6));
+  var xe0 = 90000;
+  var ye0 = 2400000;
+  var xe = xe0 + Math.floor(Math.abs(E67 - xe0) * 0.0000125) * 80000;
+  var ye = ye0 + Math.floor(Math.abs(N67 - ye0) * 0.00002) * 50000;
+  var area = [
+    "170000,2750000", "250000,2750000", "330000,2750000",
+    "170000,2700000", "250000,2700000", "330000,2700000",
+    "170000,2650000", "250000,2650000", "330000,2650000",
+    "90000,2600000",  "170000,2600000", "250000,2600000",
+    "90000,2550000",  "170000,2550000", "250000,2550000",
+    "90000,2500000",  "170000,2500000", "250000,2500000",
+    "330000,2500000", "170000,2450000", "250000,2450000",
+    "170000,2400000", "250000,2400000"
+  ];
+  var zone1 = area.findIndex(function(a) {
+    return a === xe + "," + ye;
+  });
+  var tem1 = area[zone1].split(',');
+  xe = parseInt(tem1[0]);
+  ye = parseInt(tem1[1]);
+  var xe1 = ("00" + Math.floor((E67 - xe) / 800)).slice(-2);
+  var ye1 = ("00" + Math.floor((N67 - ye) / 500)).slice(-2);
+  var xe2 = Math.floor((E67 - xe) % 800 / 100);
+  var ye2 = Math.floor((N67 - ye) % 500 / 100);
+  var ev = [
+    ["AA", "BA", "CA", "DA", "EA", "FA", "GA", "HA"],
+    ["AB", "BB", "CB", "DB", "EB", "FB", "GB", "HB"],
+    ["AC", "BC", "CC", "DC", "EC", "FC", "GC", "HC"],
+    ["AD", "BD", "CD", "DD", "ED", "FD", "GD", "HD"],
+    ["AE", "BE", "CE", "DE", "EE", "FE", "GE", "HE"]
+  ];
+  var ze2 = ev[ye2][xe2];
+  var b11 = Math.floor((E67 % 100) / 10).toString();
+  var c11 = Math.floor((N67 % 100) / 10).toString();
+  var fs = b11 + c11 + (E67 % 10).toString() + (N67 % 10).toString();
+  var f1 = String.fromCharCode(65 + zone1) + xe1 + ye1 + ze2 + fs;
+
+  return f1;
+}
+
+        // 更新 resetMap 函數以關閉所有信息窗口
+        function resetMap() {
+            markers.forEach(function(item) {
+                item.marker.setMap(null);
+                item.infoWindow.close();
+            });
+            markers = [];
+            map.setCenter({ lat: 22.998955, lng: 120.217146 });
+            map.setZoom(14);
+            document.getElementById('address').value = '國立成功大學';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('address').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    geocodeAddress();
+                }
+            });
+        });
+
+        function clearInput() {
+            document.getElementById('address').value = '';
+        }
+    </script>
+</head>
+<body>
+    <div class="input-group">
+        <input id="address" type="text" value="國立成功大學">
+        <input id="searchButton" type="button" value="Search" onclick="geocodeAddress()">
+        <input id="clearButton" type="button" value="Clear" onclick="clearInput()">
+        <input id="resetButton" type="button" value="Reset" onclick="resetMap()">
+    </div>
+    <div id="map"></div>
+</body>
+</html>
