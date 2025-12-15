@@ -3,29 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <title>Private Access</title>
+
+  <!-- ✅ 禁止 GitHub Pages / Jekyll 修改這個檔案 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://summer-resonance-1f41.zammbb810.workers.dev; script-src 'self'; connect-src https://summer-resonance-1f41.zammbb810.workers.dev;">
+
 </head>
 <body>
   <h2>Enter Password</h2>
   <input id="pw" type="password" placeholder="Password">
-  <button onclick="login()">Enter</button>
+  <button id="btn">Enter</button>
 
   <script>
+    document.getElementById("btn").addEventListener("click", login);
+
     async function login() {
       const pw = document.getElementById("pw").value;
+
+      // ✅ 確保 JSON 正確送出
+      const bodyData = JSON.stringify({ password: pw });
+      console.log("Sending JSON:", bodyData);
 
       const res = await fetch("https://summer-resonance-1f41.zammbb810.workers.dev/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pw })
+        body: bodyData
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        alert("Server error");
+        return;
+      }
 
       if (data.ok) {
-        // ✅ 把 token 存起來
         localStorage.setItem("session_token", data.token);
-
-        // ✅ 帶 token 前往 /page
         window.location.href =
           "https://summer-resonance-1f41.zammbb810.workers.dev/page?token=" + data.token;
       } else {
