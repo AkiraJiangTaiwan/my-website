@@ -1,12 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="robots" content="noindex, nofollow">
-    <meta http-equiv="refresh" content="0; url=mapcode20240806.html">
-    <title>Redirecting...</title>
+  <meta charset="UTF-8">
+  <title>Private Access</title>
 </head>
 <body>
-    <p>正在導向到主頁面…</p>
+  <h2>Enter Password</h2>
+  <input id="pw" type="password" placeholder="Password">
+  <button onclick="login()">Enter</button>
+
+  <script>
+    async function login() {
+      const pw = document.getElementById("pw").value;
+
+      const res = await fetch("https://summer-resonance-1f41.zammbb810.workers.dev/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw })
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        // ✅ 把 token 存起來
+        localStorage.setItem("session_token", data.token);
+
+        // ✅ 帶 token 前往 /page
+        window.location.href =
+          "https://summer-resonance-1f41.zammbb810.workers.dev/page?token=" + data.token;
+      } else {
+        alert("Wrong password");
+      }
+    }
+  </script>
 </body>
 </html>
